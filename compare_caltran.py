@@ -7,6 +7,10 @@ from numpy.linalg import norm
 import caltran_utils as ct
 import scipy as sp
 
+# This function creates a plot to plot spectra on the same set of wavelengths.
+# The assumption is that the spectra are: lab data, mars data, and a list of transformed lab spectra
+# A list of labels can be provided along with the transformed lab spectra
+#
 def do_comparison_plot(wvls,lab,mars,transformed, transformed_label=[''],filename=''):
     plot.plot(wvls, lab, label='Lab', linewidth=0.5)
     for i in range(len(transformed)):
@@ -16,10 +20,13 @@ def do_comparison_plot(wvls,lab,mars,transformed, transformed_label=[''],filenam
     plot.savefig(filename)
     plot.close()
 
+# Simple function to calculate the root mean squared error between two spectra,
+# as an assement of how successful the tranformation was
 def mismatch_rmse(spectrum, spectrum_to_match):
     return np.sqrt(np.average((spectrum - spectrum_to_match)**2))
 
 
+#Begin code provided by T. Boucher, with minor tweaks ##############
 def pls_ds(A,B,n_components=1):
     model = PLSRegression(n_components=n_components,scale=False).fit(B,A)
     return model
@@ -134,8 +141,6 @@ def admm_ds(A,B,rho=1,beta=.02,epsilon=1e-5,max_iter=100,verbose=True,
     return Z,np.dot(B,P)
 
 def sparse_lowrank_ds(A,B):
-    #return forward_backward_ds(A,B,t=0.001,svt=1,l1=1,epsilon=1e-5,max_iter=20,verbose=True)
-    #return incr_prox_descent_ds(A,B)
     return admm_ds(A,B,reg='sp_lr',rho=1,beta=.02)
 
 def cca_ds(A,B,n_components=1):
@@ -199,40 +204,60 @@ def forward_backward_ds(A,B,t=0.001,svt=1,l1=1,epsilon=1e-5,max_iter=20,
 
     return P,np.dot(B,P)
 
-#Load Lab cal target data
-lab_data = pd.read_csv(r"C:\Users\rbanderson\Documents\Projects\MSL\ChemCam\DataProcessing\Working\caltran\lab_data_cal_targets_means.csv", header=[0,1])
-#lab_data = pd.read_csv(r"C:\Users\rbanderson\Documents\Projects\MSL\ChemCam\DataProcessing\Working\caltran\lab_cal_targets_closest_to_mars.csv", header=[0,1])
-lab_mean = np.mean(lab_data['wvl'],axis=0)
-lab_data['wvl']=lab_data['wvl'].apply(lambda x: x-x.mean())
+#################################################
+# Main script for evaluating caltran methods.
+# Two different methods of identifying corresponding spectra on Earth and Mars have been tried: Means and "Closest"
+# For the "means" method, we calculate the average spectrum of each target on earth and match it up with the average
+# spectrum of each target on Mars.
+# For the "closest" method, use line ratios to identify individual spectra from earth and Mars that are most similar
+# and use these instead of the mean spectra
 
-#################################### Does mean centering help at all?
+#Load Lab cal target data
+lab_data = pd.read_csv(
+    r"C:\Users\rbanderson\Documents\Projects\MSL\ChemCam\DataProcessing\Working\caltran\lab_data_cal_targets_means.csv",
+    header=[0,1])
+#lab_data = pd.read_csv(
+# r"C:\Users\rbanderson\Documents\Projects\MSL\ChemCam\DataProcessing\Working\caltran\lab_cal_targets_closest_to_mars.csv",
+#  header=[0,1])
+
+#Code to mean center the lab spectra
+#TODO: Does mean centering help at all?
+#lab_mean = np.mean(lab_data['wvl'],axis=0)
+#lab_data['wvl']=lab_data['wvl'].apply(lambda x: x-x.mean())
+
 
 #Load Mars Cal target data
-mars_data = pd.read_csv(r"C:\Users\rbanderson\Documents\Projects\MSL\ChemCam\DataProcessing\Working\caltran\mars_cal_targets_means.csv", header=[0,1])
-#mars_data = pd.read_csv(r"C:\Users\rbanderson\Documents\Projects\MSL\ChemCam\DataProcessing\Working\caltran\mars_cal_targets_closest_toLab.csv",header=[0,1])
-mars_mean = np.mean(mars_data['wvl'],axis=0)
-mars_data['wvl']=mars_data['wvl'].apply(lambda x: x-x.mean())
+mars_data = pd.read_csv(
+    r"C:\Users\rbanderson\Documents\Projects\MSL\ChemCam\DataProcessing\Working\caltran\mars_cal_targets_means.csv",
+    header=[0,1])
+#mars_data = pd.read_csv(
+# r"C:\Users\rbanderson\Documents\Projects\MSL\ChemCam\DataProcessing\Working\caltran\mars_cal_targets_closest_toLab.csv",
+# header=[0,1])
 
+#Code to mean center the lab spectra
+#TODO: Does mean centering help at all?
+# mars_mean = np.mean(mars_data['wvl'],axis=0)
+# mars_data['wvl']=mars_data['wvl'].apply(lambda x: x-x.mean())
+
+#Specify in the output files which spectra are being used
 #outname = '_closest_'
 outname='_mean_'
 
-#load earth to mars correction currently being used
+# load earth to mars correction currently being used
+# (This is just a simple vector derived from the ratio of the earth and Mars data)
 e2m = pd.read_csv(
     r"C:\Users\rbanderson\Documents\Projects\MSL\ChemCam\DataProcessing\Working\caltran\EARTH_2_MARS_CORR.CSV",
     header=None)
 
 #iterate through each cal target, run each cal tran method, calculate spectral mismatch, save transformed spectra
-
 cal_targets_unique = lab_data[('meta','Target')] #get list of cal targets
-
 wvls = np.array(lab_data['wvl'].columns.values,dtype=float) #get wvls
 
-
-
 #do CV to compare results
-cv_results = pd.DataFrame()
+cv_results = pd.DataFrame() #make an empty data frame to hold the results
 ind = 0
 
+#for each cal target
 for target in cal_targets_unique:
     #split mars and lab data into training and validation
     val_data_lab = np.squeeze(np.array(lab_data[lab_data[('meta','Target')] == target]['wvl']))
@@ -240,6 +265,7 @@ for target in cal_targets_unique:
     val_data_mars = np.squeeze(np.array(mars_data[mars_data[('meta', 'Target_x')] == target]['wvl']))
     train_data_mars = np.squeeze(np.array(mars_data[mars_data[('meta', 'Target_x')] != target]['wvl']))
 
+    #This is some code I was fiddling with to try to get the decomposition to work
     # #Identify and remove zeros
     # BtB_sum = np.sum(np.dot(train_data.T,train_data),axis=0)
     # train_data=train_data[:,BtB_sum!=0]
@@ -249,6 +275,7 @@ for target in cal_targets_unique:
     # e2m=e2m.iloc[BtB_sum!=0]
     # wvls = wvls[BtB_sum!=0]
 
+   # This code was used to make plots of the error in the transform for piecewise_ds (the best method so far)
    #   # make plots
    #  pds_do_proj, train_pds_proj = piecewise_ds(train_data_mars, train_data, win_size=1, pls=None)
    #  val_data_lab_pds1 = np.dot(val_data_lab, pds_do_proj)
@@ -287,8 +314,7 @@ for target in cal_targets_unique:
                            filename=target+outname+'_ratio.png')
 
     print("Calculating results using Lasso DS")
-    #Z, train_data_transformed = lasso_ds(train_data_mars, train_data, rho=1, beta=.02)
-    Z, train_data_transformed = ridge_ds(train_data_mars, train_data, rho=1, beta=.02)
+    Z, train_data_transformed = lasso_ds(train_data_mars, train_data, rho=1, beta=.02)
 
     cv_results.loc[ind, 'Method'] = 'LASSO DS'
     cv_results.loc[ind, target + '_RMSE'] = mismatch_rmse(val_data_lab_transformed, val_data_mars)
@@ -316,6 +342,8 @@ for target in cal_targets_unique:
         cv_results.loc[ind, target + '_RMSE'] = mismatch_rmse(val_data_lab_transformed, val_data_mars)
         print("RMSE = "+str(mismatch_rmse(val_data_lab_transformed, val_data_mars)))
         ind = ind + 1
+        #I forget why this is commented out. It either wasn't running, or was running too slowly...
+
         # for nc in range(1,min(10, win_size-1)):
         #     print("PDS-PLS nc="+str(nc))
         #     pds_do_proj, train_pds_proj = piecewise_ds(train_data_mars, train_data, win_size=win_size, pls=nc)
@@ -326,22 +354,22 @@ for target in cal_targets_unique:
         #     cv_results.loc[ind, target + '_RMSE'] = mismatch_rmse(val_data_lab_transformed, val_data_mars)
         #     print("RMSE = " + str(mismatch_rmse(val_data_lab_transformed, val_data_mars)))
         #     ind = ind + 1
-    # print("Calculating results using incr Prox descent")
-    # do_ipd,train_transformed = incr_prox_descent_ds(train_data_mars,train_data,t=.00000002,svt=10,l1=10,epsilon=1e-5,max_iter=50,
-    #                      verbose=True)
-    # val_data_lab_transformed = np.squeeze(np.array(np.dot(val_data_lab,do_ipd)))
-    # cv_results.loc[ind, 'Method'] = 'IPD'
-    # cv_results.loc[ind, target + '_RMSE'] = mismatch_rmse(val_data_lab_transformed, val_data_mars)
-    # ind=ind+1
-    # print("Calculating results using forward backward ds")
-    # do_fbds,train_transformed = forward_backward_ds(train_data_mars,train_data,t=.0001,svt=1,l1=1,epsilon=1e-5,max_iter=20,
-    #                      verbose=True)
-    # val_data_lab_transformed = np.squeeze(np.array(np.dot(val_data_lab,do_fbds)))
-    # cv_results.loc[ind, 'Method'] = 'FBDS'
-    # cv_results.loc[ind, target + '_RMSE'] = mismatch_rmse(val_data_lab_transformed, val_data_mars)
-    # ind=ind+1
 
+    print("Calculating results using incr Prox descent")
+    do_ipd,train_transformed = incr_prox_descent_ds(train_data_mars,train_data,t=.00000002,svt=10,l1=10,epsilon=1e-5,max_iter=50,
+                         verbose=True)
+    val_data_lab_transformed = np.squeeze(np.array(np.dot(val_data_lab,do_ipd)))
+    cv_results.loc[ind, 'Method'] = 'IPD'
+    cv_results.loc[ind, target + '_RMSE'] = mismatch_rmse(val_data_lab_transformed, val_data_mars)
+    ind=ind+1
 
+    print("Calculating results using forward backward ds")
+    do_fbds,train_transformed = forward_backward_ds(train_data_mars,train_data,t=.0001,svt=1,l1=1,epsilon=1e-5,max_iter=20,
+                         verbose=True)
+    val_data_lab_transformed = np.squeeze(np.array(np.dot(val_data_lab,do_fbds)))
+    cv_results.loc[ind, 'Method'] = 'FBDS'
+    cv_results.loc[ind, target + '_RMSE'] = mismatch_rmse(val_data_lab_transformed, val_data_mars)
+    ind=ind+1
 
     print("Calculating results using PLS Direct Standardization")
     for nc in range(1,10):
@@ -351,43 +379,29 @@ for target in cal_targets_unique:
         cv_results.loc[ind,'Method']='PLS-DS'
         cv_results.loc[ind,'nc']=nc
         cv_results.loc[ind,target+'_RMSE']=mismatch_rmse(val_data_lab_transformed,val_data_mars)
-
         ind=ind+1
-
         do_comparison_plot(wvls,val_data_lab,val_data_mars,[val_data_lab_transformed],
                            transformed_label=['Lab (PLS-DS nc=' + str(nc) + ')'],
                            filename=target+outname+'_pls_ds_nc'+str(nc)+'.png')
 
-        pass
 
+    print("Calculating results using CCA-DS")
+    for nc in range(1,10):
+        cca_ds_model = cca_ds(train_data_mars, train_data, n_components=nc)
+        val_data_lab_transformed = cca_ds_model.predict(val_data_lab.reshape(1,-1))
+        cv_results.loc[ind, 'Method'] = 'CCA-DS'
+        cv_results.loc[ind, 'nc'] = nc
+        cv_results.loc[ind, target + '_RMSE'] = mismatch_rmse(val_data_lab_transformed, val_data_mars)
+        ind = ind + 1
 
+    print("Calculating results using New CCA-DS")
+    for nc in range(1,10):
+        do_new_ccs_ds,train_cca_trans = new_cca_ds(train_data_mars, train_data, n_components=nc)
+        val_data_lab_transformed = val_data_lab.dot(do_new_ccs_ds)
+        cv_results.loc[ind, 'Method'] = 'New CCA-DS'
+        cv_results.loc[ind, 'nc'] = nc
+        cv_results.loc[ind, target + '_RMSE'] = mismatch_rmse(val_data_lab_transformed, val_data_mars)
+        ind = ind + 1
 
-
-
-
-    # print("Calculating results using CCA-DS")
-    # for nc in range(1,10):
-    #     cca_ds_model = cca_ds(train_data_mars, train_data, n_components=nc)
-    #     val_data_lab_transformed = cca_ds_model.predict(val_data_lab.reshape(1,-1))
-    #     cv_results.loc[ind, 'Method'] = 'CCA-DS'
-    #     cv_results.loc[ind, 'nc'] = nc
-    #     cv_results.loc[ind, target + '_RMSE'] = mismatch_rmse(val_data_lab_transformed, val_data_mars)
-    #     ind = ind + 1
-
-    # print("Calculating results using New CCA-DS")
-    # for nc in range(1,10):
-    #     do_new_ccs_ds,train_cca_trans = new_cca_ds(train_data_mars, train_data, n_components=nc)
-    #     val_data_lab_transformed = val_data_lab.dot(do_new_ccs_ds)
-    #     cv_results.loc[ind, 'Method'] = 'New CCA-DS'
-    #     cv_results.loc[ind, 'nc'] = nc
-    #     cv_results.loc[ind, target + '_RMSE'] = mismatch_rmse(val_data_lab_transformed, val_data_mars)
-    #     ind = ind + 1
-    print("Calculating results with No transformation applied")
-    cv_results.loc[ind, 'Method'] = 'None2'
-    cv_results.loc[ind, target + '_RMSE'] = mismatch_rmse(val_data_lab, val_data_mars)
-    print("RMSE = " + str(mismatch_rmse(val_data_lab, val_data_mars)))
-    ind = ind + 1
-
-    ind=0
-cv_results.to_csv(outname+'cv_results.csv')
-pass
+    ind=0 #reset the index for next time
+cv_results.to_csv(outname+'cv_results.csv') #write the cross validation results out to a csv file
