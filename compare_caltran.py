@@ -226,10 +226,10 @@ def forward_backward_ds(A,B,t=0.001,svt=1,l1=1,epsilon=1e-5,max_iter=20,
 
 #Load Lab cal target data
 lab_data = pd.read_csv(
-    r"../data/caltran/lab_data_cal_targets_means.csv",
+    r"C:\Users\rbanderson\Documents\Projects\MSL\ChemCam\DataProcessing\Working\caltran\lab_data_cal_targets_means.csv",
     header=[0,1])
 #lab_data = pd.read_csv(
-# r"../data/caltran/lab_cal_targets_closest_to_mars.csv",
+# r"C:\Users\rbanderson\Documents\Projects\MSL\ChemCam\DataProcessing\Working\caltran\lab_cal_targets_closest_to_mars.csv",
 #  header=[0,1])
 
 #Code to mean center the lab spectra
@@ -240,10 +240,10 @@ lab_data = pd.read_csv(
 
 #Load Mars Cal target data
 mars_data = pd.read_csv(
-    r"../data/caltran/mars_cal_targets_means.csv",
+    r"C:\Users\rbanderson\Documents\Projects\MSL\ChemCam\DataProcessing\Working\caltran\mars_cal_targets_means.csv",
     header=[0,1])
 #mars_data = pd.read_csv(
-# r"../data/caltran/mars_cal_targets_closest_toLab.csv",
+# r"C:\Users\rbanderson\Documents\Projects\MSL\ChemCam\DataProcessing\Working\caltran\mars_cal_targets_closest_toLab.csv",
 # header=[0,1])
 
 #Code to mean center the lab spectra
@@ -258,7 +258,7 @@ outname='_mean_'
 # load earth to mars correction currently being used
 # (This is just a simple vector derived from the ratio of the earth and Mars data)
 e2m = pd.read_csv(
-    r"../data/caltran/EARTH_2_MARS_CORR.CSV",
+    r"C:\Users\rbanderson\Documents\Projects\MSL\ChemCam\DataProcessing\Working\caltran\EARTH_2_MARS_CORR.CSV",
     header=None)
 
 #iterate through each cal target, run each cal tran method, calculate spectral mismatch, save transformed spectra
