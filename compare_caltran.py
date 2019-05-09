@@ -1,5 +1,7 @@
 import pandas as pd
 from sklearn.cross_decomposition import CCA, PLSRegression
+from sklearn.preprocessing import normalize
+
 import matplotlib.pyplot as plot
 import numpy as np
 from scipy.linalg import cho_factor, cho_solve
@@ -88,6 +90,9 @@ def admm_ds(A,B,rho=1,beta=.02,epsilon=1e-5,max_iter=100,verbose=True,
     Z = P.copy()
     Y = P.copy()
 
+    A = normalize(A, axis=1)
+    B = normalize(B, axis=1)
+
     BtB=np.dot(B.T,B)
     BtA=np.dot(B.T,A)
     if reg is 'fused':
@@ -161,6 +166,9 @@ def incr_prox_descent_ds(A,B,t=.0002,svt=10,l1=10,epsilon=1e-5,max_iter=50,
     # incremental proximal descent, Bertsekas 2010
     P = np.eye(B.shape[1])
     #P = np.zeros(B.shape[1])
+    A = normalize(A, axis=1)
+    B = normalize(B, axis=1)
+
     BtB=np.dot(B.T,B)
     BtA=np.dot(B.T,A)
     for it in range(max_iter):
@@ -186,6 +194,10 @@ def forward_backward_ds(A,B,t=0.001,svt=1,l1=1,epsilon=1e-5,max_iter=20,
     P = np.zeros(B.shape[1])
     Z1 = P.copy()
     Z2 = P.copy()
+
+    A = normalize(A, axis=1)
+    B = normalize(B, axis=1)
+
     BtB=np.dot(B.T,B)
     BtA=np.dot(B.T,A)
     for it in range(max_iter):
@@ -313,10 +325,10 @@ for target in cal_targets_unique:
                            transformed_label=['Lab (Ratio)'],
                            filename=target+outname+'_ratio.png')
 
-    print("Calculating results using Lasso DS")
-    Z, train_data_transformed = lasso_ds(train_data_mars, train_data, rho=1, beta=.02)
+    print("Calculating results using Ridge DS")
+    Z, train_data_transformed = ridge_ds(train_data_mars, train_data, rho=1, beta=.02)
 
-    cv_results.loc[ind, 'Method'] = 'LASSO DS'
+    cv_results.loc[ind, 'Method'] = 'Ridge DS'
     cv_results.loc[ind, target + '_RMSE'] = mismatch_rmse(val_data_lab_transformed, val_data_mars)
     ind = ind + 1
     pass
